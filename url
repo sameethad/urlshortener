@@ -1,0 +1,35 @@
+pip install flask sqlite3
+from flask import Flask, request, redirect, jsonify
+import sqlite3
+import random
+import string
+
+app = Flask(__name__)
+
+# Set up SQLite database
+conn = sqlite3.connect('urls.db', check_same_thread=False)
+conn.execute("CREATE TABLE IF NOT EXISTS url_map (short TEXT, long TEXT)")
+conn.commit()
+
+def generate_short_url():
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+
+@app.route('/shorten', methods=['POST'])
+def shorten_url():
+    long_url = request.json.get('long_url')
+    if not long_url:
+        return jsonify({"error": "URL is required"}), 400
+    short_url = generate_short_url()
+    conn.execute("INSERT INTO url_map (short, long) VALUES (?, ?)", (short_url, long_url))
+    conn.commit()
+    return jsonify({"short_url": f"http://localhost:5000/{short_url}"}), 201
+
+@app.route('/<short_url>', methods=['GET'])
+def redirect_url(short_url):
+    result = conn.execute("SELECT long FROM url_map WHERE short=?", (short_url,)).fetchone()
+    if result:
+        return redirect(result[0])
+    return jsonify({"error": "URL not found"}), 404
+
+if __name__ == '__main__':
+    app.run(debug=True)
